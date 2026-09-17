@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     refresh_token_hash VARCHAR(255) NOT NULL,
     device_info TEXT,
-    ip_address VARCHAR(45),
+    ip_address VARCHAR(255),
     expires_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS video_views (
     watch_duration_ms BIGINT NOT NULL DEFAULT 0,
     completion_percent REAL NOT NULL DEFAULT 0,
     is_complete BOOLEAN NOT NULL DEFAULT FALSE,
-    ip_address VARCHAR(45),
+    ip_address VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_video_views_video ON video_views(video_id);
@@ -367,7 +367,7 @@ CREATE TABLE IF NOT EXISTS analytics_events (
     watch_duration_ms BIGINT DEFAULT 0,
     completion_percent REAL DEFAULT 0,
     metadata JSONB DEFAULT '{}',
-    ip_address VARCHAR(45),
+    ip_address VARCHAR(255),
     user_agent TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
