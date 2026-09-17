@@ -4,19 +4,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val TikTokDarkColorScheme = darkColorScheme(
-    primary = TikTokPink,
+private val TashanRainbowColorScheme = darkColorScheme(
+    primary = RainbowPink,
     onPrimary = TikTokWhite,
-    secondary = TikTokCyan,
-    onSecondary = TikTokBlack,
-    tertiary = TikTokPink,
-    background = TikTokBlack,
+    secondary = RainbowCyan,
+    onSecondary = TashanMidnight,
+    tertiary = RainbowYellow,
+    background = TashanMidnight,
     onBackground = TikTokWhite,
-    surface = TikTokDarkSurface,
+    surface = TashanDarkSurface,
     onSurface = TikTokWhite,
-    surfaceVariant = TikTokDarkCard,
+    surfaceVariant = TashanDarkCard,
     onSurfaceVariant = TikTokWhite80,
-    outline = TikTokDarkBorder
+    outline = TashanDarkBorder
 )
 
 @Composable
@@ -24,7 +24,7 @@ fun MyApplicationTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = TikTokDarkColorScheme,
+        colorScheme = TashanRainbowColorScheme,
         typography = Typography,
         content = content
     )

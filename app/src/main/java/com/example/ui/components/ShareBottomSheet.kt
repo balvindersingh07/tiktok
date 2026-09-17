@@ -64,6 +64,12 @@ fun ShareBottomSheet(
     onDismiss: () -> Unit,
     onCopyLink: () -> Unit,
     onRepost: () -> Unit,
+    onShareViaSystem: () -> Unit = {},
+    onSaveVideo: () -> Unit = {},
+    onDuet: () -> Unit = {},
+    onStitch: () -> Unit = {},
+    onQrCode: () -> Unit = {},
+    onSendToFriend: (QuickFriend) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -78,6 +84,7 @@ fun ShareBottomSheet(
 
     val actions = listOf(
         ShareAction("Repost", Icons.Filled.Repeat, TikTokPink, "share_repost"),
+        ShareAction("Share...", Icons.Filled.Share, Color(0xFF2196F3), "share_system"),
         ShareAction("Copy Link", Icons.Filled.ContentCopy, TikTokCyan, "share_copy_link"),
         ShareAction("Save Video", Icons.Filled.Download, Color(0xFF4CAF50), "share_save_video"),
         ShareAction("Duet", Icons.Filled.DynamicForm, Color(0xFF9C27B0), "share_duet"),
@@ -142,7 +149,7 @@ fun ShareBottomSheet(
                 items(friends) { friend ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.clickable { onDismiss() }
+                        modifier = Modifier.clickable { onSendToFriend(friend) }
                     ) {
                         Box(
                             modifier = Modifier
@@ -161,7 +168,7 @@ fun ShareBottomSheet(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = friend.name,
-                            color = TikTokWhite80,
+                            color = TikTokWhite,
                             fontSize = 11.sp,
                             maxLines = 1
                         )
@@ -175,7 +182,6 @@ fun ShareBottomSheet(
                     .fillMaxWidth()
                     .height(0.5.dp)
                     .background(Color(0xFF222222))
-                    .padding(vertical = 4.dp)
             )
 
             Text(
@@ -199,8 +205,13 @@ fun ShareBottomSheet(
                         modifier = Modifier
                             .clickable {
                                 when (action.tag) {
-                                    "share_copy_link" -> onCopyLink()
                                     "share_repost" -> onRepost()
+                                    "share_system" -> onShareViaSystem()
+                                    "share_copy_link" -> onCopyLink()
+                                    "share_save_video" -> onSaveVideo()
+                                    "share_duet" -> onDuet()
+                                    "share_stitch" -> onStitch()
+                                    "share_qr_code" -> onQrCode()
                                     else -> onDismiss()
                                 }
                             }

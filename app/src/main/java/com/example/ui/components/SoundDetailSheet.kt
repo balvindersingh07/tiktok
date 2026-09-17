@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.VideoEntity
+import com.example.ui.theme.RainbowSweepBrush
 import com.example.ui.theme.TikTokCyan
 import com.example.ui.theme.TikTokDarkSurface
 import com.example.ui.theme.TikTokPink
@@ -125,7 +126,7 @@ fun SoundDetailSheet(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Brush.sweepGradient(listOf(TikTokCyan, TikTokPink, TikTokCyan))),
+                            .background(RainbowSweepBrush),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

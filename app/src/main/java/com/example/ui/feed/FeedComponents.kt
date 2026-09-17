@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.VideoEntity
+import com.example.ui.theme.RainbowSweepBrush
 import com.example.ui.theme.TikTokBlack
 import com.example.ui.theme.TikTokCyan
 import com.example.ui.theme.TikTokGold
@@ -94,6 +95,7 @@ fun RightActionBar(
     onShareClick: () -> Unit,
     onFollowClick: () -> Unit,
     onSoundClick: () -> Unit,
+    onAvatarClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -105,7 +107,8 @@ fun RightActionBar(
         CreatorAvatar(
             authorName = video.authorName,
             isFollowing = video.isFollowing,
-            onFollowClick = onFollowClick
+            onFollowClick = onFollowClick,
+            onAvatarClick = onAvatarClick
         )
 
         // Like Button
@@ -160,6 +163,7 @@ fun CreatorAvatar(
     authorName: String,
     isFollowing: Boolean,
     onFollowClick: () -> Unit,
+    onAvatarClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -177,6 +181,11 @@ fun CreatorAvatar(
                     Brush.radialGradient(
                         listOf(Color(0xFF4A0E4E), Color(0xFF161823))
                     )
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onAvatarClick
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -351,11 +360,7 @@ fun SpinningVinylRecord(
                 modifier = Modifier
                     .size(22.dp)
                     .clip(CircleShape)
-                    .background(
-                        Brush.sweepGradient(
-                            listOf(TikTokCyan, TikTokPink, TikTokCyan)
-                        )
-                    ),
+                    .background(RainbowSweepBrush),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -373,6 +378,7 @@ fun SpinningVinylRecord(
 fun VideoBottomOverlay(
     video: VideoEntity,
     onSoundClick: () -> Unit,
+    onCreatorClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -385,7 +391,13 @@ fun VideoBottomOverlay(
         // Creator handle and verified badge
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier
+                .padding(bottom = 6.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onCreatorClick
+                )
         ) {
             Text(
                 text = video.authorHandle,

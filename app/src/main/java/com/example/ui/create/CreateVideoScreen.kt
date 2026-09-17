@@ -1,5 +1,9 @@
 package com.example.ui.create
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -22,6 +26,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +46,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -62,7 +70,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.R
+import com.example.data.SoundEntity
+import com.example.data.VideoEntity
 import com.example.ui.theme.TikTokBlack
 import com.example.ui.theme.TikTokCyan
 import com.example.ui.theme.TikTokDarkCard
@@ -77,7 +88,27 @@ import kotlinx.coroutines.delay
 @Composable
 fun CreateVideoScreen(
     onClose: () -> Unit,
-    onPublishVideo: (caption: String, soundTitle: String, soundAuthor: String, coverRes: String) -> Unit,
+    onPublishVideo: (
+        caption: String,
+        soundTitle: String,
+        soundAuthor: String,
+        coverRes: String,
+        videoPath: String,
+        isPrivate: Boolean,
+        allowComments: Boolean
+    ) -> Unit,
+    onSaveDraft: (
+        caption: String,
+        soundTitle: String,
+        soundAuthor: String,
+        coverRes: String,
+        videoPath: String
+    ) -> Unit = { _, _, _, _, _ -> },
+    onImportUri: (Uri) -> String? = { null },
+    availableSounds: List<SoundEntity> = emptyList(),
+    preSelectedSound: SoundEntity? = null,
+    duetSourceVideo: VideoEntity? = null,
+    stitchSourceVideo: VideoEntity? = null,
     modifier: Modifier = Modifier
 ) {
     var isRecording by remember { mutableStateOf(false) }
@@ -87,12 +118,40 @@ fun CreateVideoScreen(
     var flashEnabled by remember { mutableStateOf(false) }
     var selectedSpeed by remember { mutableStateOf("1x") }
     var selectedDuration by remember { mutableStateOf("15s") }
-    var selectedSound by remember { mutableStateOf("Original Audio - Trending Beat") }
+    var selectedSoundTitle by remember {
+        mutableStateOf(preSelectedSound?.title ?: "Original Audio - Trending Beat")
+    }
+    var selectedSoundAuthor by remember {
+        mutableStateOf(preSelectedSound?.author ?: "TikTok Music")
+    }
+    var showSoundPicker by remember { mutableStateOf(false) }
 
     // Upload / Publish Sheet state
     var showPublishSheet by remember { mutableStateOf(false) }
-    var videoCaption by remember { mutableStateOf("Just created this new vibe! 🔥 What do you think? #creator #fyp #viral") }
+    var videoCaption by remember {
+        mutableStateOf(
+            if (duetSourceVideo != null) "#duet with @${duetSourceVideo.authorHandle} 🔥"
+            else if (stitchSourceVideo != null) "#stitch with @${stitchSourceVideo.authorHandle} 🎬"
+            else "Just created this new vibe! 🔥 What do you think? #creator #fyp #viral"
+        )
+    }
     var selectedCoverRes by remember { mutableStateOf("video_cover_dance") }
+    var localVideoFilePath by remember { mutableStateOf("") }
+    var isPrivateVideo by remember { mutableStateOf(false) }
+    var allowComments by remember { mutableStateOf(true) }
+
+    // Android 13+ zero-permission Photo & Video Picker launcher
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val savedPath = onImportUri(uri)
+            if (savedPath != null) {
+                localVideoFilePath = savedPath
+            }
+            showPublishSheet = true
+        }
+    }
 
     LaunchedEffect(isRecording) {
         if (isRecording) {
@@ -140,12 +199,34 @@ fun CreateVideoScreen(
                 )
         )
 
-        // Top Controls: Close button & Sound Selector Pill
+        // Duet / Stitch Banner Indicator if active
+        if (duetSourceVideo != null || stitchSourceVideo != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .border(1.dp, TikTokPink, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (duetSourceVideo != null) "👯 Duet with ${duetSourceVideo.authorHandle}"
+                    else "✂️ Stitch with ${stitchSourceVideo?.authorHandle}",
+                    color = TikTokWhite,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // Top Studio Bar (Close, Sound Selector)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -155,12 +236,13 @@ fun CreateVideoScreen(
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(Color(0x55000000))
-                    .testTag("create_close_button")
+                    .testTag("close_camera_button")
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Close Studio",
-                    tint = TikTokWhite
+                    contentDescription = "Close Camera",
+                    tint = TikTokWhite,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -168,37 +250,36 @@ fun CreateVideoScreen(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0x77000000))
-                    .clickable { }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0x66000000))
+                    .clickable { showSoundPicker = true }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.MusicNote,
-                    contentDescription = null,
-                    tint = TikTokCyan,
-                    modifier = Modifier.size(16.dp)
+                    contentDescription = "Sound Selector",
+                    tint = TikTokWhite,
+                    modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = selectedSound.take(24) + if (selectedSound.length > 24) "..." else "",
+                    text = selectedSoundTitle.take(18) + if (selectedSoundTitle.length > 18) "..." else "",
                     color = TikTokWhite,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
 
-            Spacer(modifier = Modifier.width(36.dp))
+            Spacer(modifier = Modifier.size(36.dp))
         }
 
-        // Right Studio Tools Sidebar (Flip, Speed, Beauty, Flash, Timer)
+        // Right Studio Toolset
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(end = 12.dp, top = 60.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+                .padding(end = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StudioToolItem(
                 icon = Icons.Filled.FlipCameraAndroid,
@@ -206,6 +287,7 @@ fun CreateVideoScreen(
                 isActive = isCameraFront,
                 onClick = { isCameraFront = !isCameraFront }
             )
+
             StudioToolItem(
                 icon = Icons.Filled.Speed,
                 label = selectedSpeed,
@@ -219,33 +301,36 @@ fun CreateVideoScreen(
                     }
                 }
             )
+
             StudioToolItem(
                 icon = Icons.Filled.AutoFixHigh,
                 label = "Beauty",
                 isActive = beautyEnabled,
                 onClick = { beautyEnabled = !beautyEnabled }
             )
+
+            StudioToolItem(
+                icon = Icons.Filled.Timer,
+                label = "Timer",
+                isActive = false,
+                onClick = { isRecording = true }
+            )
+
             StudioToolItem(
                 icon = Icons.Filled.FlashOn,
                 label = "Flash",
                 isActive = flashEnabled,
                 onClick = { flashEnabled = !flashEnabled }
             )
-            StudioToolItem(
-                icon = Icons.Filled.Timer,
-                label = "Timer",
-                isActive = false,
-                onClick = { }
-            )
         }
 
-        // Bottom Controls: Recording Ring, Duration, Upload Gallery
+        // Bottom Controls Container
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = 20.dp),
+                .padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Duration selector tabs (15s | 60s | 10m)
@@ -305,7 +390,6 @@ fun CreateVideoScreen(
                         )
                         .testTag("record_video_button")
                 ) {
-                    // Outer progress ring
                     if (isRecording) {
                         CircularProgressIndicator(
                             progress = { recordingProgress },
@@ -322,7 +406,6 @@ fun CreateVideoScreen(
                         )
                     }
 
-                    // Inner circle (red button)
                     val innerScale by animateFloatAsState(
                         targetValue = if (isRecording) 0.6f else 1.0f,
                         animationSpec = tween(200),
@@ -338,11 +421,15 @@ fun CreateVideoScreen(
                     )
                 }
 
-                // Upload Gallery Button
+                // Upload Gallery Button (Launches zero-permission Android Photo/Video Picker)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clickable { showPublishSheet = true }
+                        .clickable {
+                            videoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                            )
+                        }
                         .testTag("upload_gallery_button")
                 ) {
                     Box(
@@ -354,7 +441,7 @@ fun CreateVideoScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.PhotoLibrary,
-                            contentDescription = "Upload",
+                            contentDescription = "Upload from gallery",
                             tint = TikTokWhite,
                             modifier = Modifier.size(24.dp)
                         )
@@ -365,15 +452,9 @@ fun CreateVideoScreen(
             }
         }
 
-        // Publish / Metadata Sheet
+        // Publish & Draft Confirmation Dialog
         if (showPublishSheet) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            Dialog(onDismissRequest = { showPublishSheet = false }) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -403,7 +484,7 @@ fun CreateVideoScreen(
                         onValueChange = { videoCaption = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(90.dp)
+                            .height(84.dp)
                             .testTag("publish_caption_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = TextFieldDefaults.colors(
@@ -416,7 +497,7 @@ fun CreateVideoScreen(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
                         text = "Select Cover Style",
@@ -442,7 +523,7 @@ fun CreateVideoScreen(
                                     )
                                     .background(TikTokDarkCard)
                                     .clickable { selectedCoverRes = res }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     text = label,
@@ -454,27 +535,77 @@ fun CreateVideoScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Privacy & Comments switches
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isPrivateVideo) "Private video 🔒" else "Public video 🌍",
+                            color = TikTokWhite,
+                            fontSize = 13.sp
+                        )
+                        Switch(
+                            checked = isPrivateVideo,
+                            onCheckedChange = { isPrivateVideo = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = TikTokPink)
+                        )
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Allow comments 💬",
+                            color = TikTokWhite,
+                            fontSize = 13.sp
+                        )
+                        Switch(
+                            checked = allowComments,
+                            onCheckedChange = { allowComments = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = TikTokCyan)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Action buttons: Cancel, Drafts, Post
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { showPublishSheet = false },
+                            onClick = {
+                                onSaveDraft(
+                                    videoCaption,
+                                    selectedSoundTitle,
+                                    selectedSoundAuthor,
+                                    selectedCoverRes,
+                                    localVideoFilePath
+                                )
+                                showPublishSheet = false
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = TikTokDarkCard),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(text = "Cancel", color = TikTokWhite)
+                            Text(text = "Draft 📝", color = TikTokWhite, fontSize = 12.sp)
                         }
 
                         Button(
                             onClick = {
                                 onPublishVideo(
                                     videoCaption,
-                                    selectedSound,
-                                    "Original Sound",
-                                    selectedCoverRes
+                                    selectedSoundTitle,
+                                    selectedSoundAuthor,
+                                    selectedCoverRes,
+                                    localVideoFilePath,
+                                    isPrivateVideo,
+                                    allowComments
                                 )
                                 showPublishSheet = false
                             },
@@ -483,7 +614,75 @@ fun CreateVideoScreen(
                                 .weight(1.4f)
                                 .testTag("confirm_post_button")
                         ) {
-                            Text(text = "Post Now 🚀", color = TikTokWhite, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "Post Now 🚀",
+                                color = TikTokWhite,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sound Selection Modal Dialog
+        if (showSoundPicker) {
+            Dialog(onDismissRequest = { showSoundPicker = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(TikTokDarkSurface)
+                        .padding(20.dp)
+                ) {
+                    Text(
+                        text = "Select Soundtrack",
+                        color = TikTokWhite,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.height(280.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(availableSounds) { sound ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(TikTokDarkCard)
+                                    .clickable {
+                                        selectedSoundTitle = sound.title
+                                        selectedSoundAuthor = sound.author
+                                        showSoundPicker = false
+                                    }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = sound.title,
+                                        color = TikTokWhite,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = sound.author,
+                                        color = TikTokWhite60,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = "Select",
+                                    tint = if (selectedSoundTitle == sound.title) TikTokCyan else Color.Transparent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }

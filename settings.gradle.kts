@@ -22,7 +22,7 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "TikTok"
+rootProject.name = "Tashan"
 
 
 include(":app")

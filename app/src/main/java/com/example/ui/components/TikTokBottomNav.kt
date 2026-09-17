@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.MainTab
+import com.example.ui.theme.RainbowHorizontalBrush
 import com.example.ui.theme.TikTokBlack
 import com.example.ui.theme.TikTokCyan
 import com.example.ui.theme.TikTokPink
@@ -66,12 +67,12 @@ fun TikTokBottomNav(
             .background(backgroundColor)
             .windowInsetsPadding(WindowInsets.navigationBars)
     ) {
-        // Subtle top border divider
+        // Rainbow top border divider
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(0.5.dp)
-                .background(Color(0xFF222222))
+                .height(1.5.dp)
+                .background(RainbowHorizontalBrush)
         )
 
         Row(

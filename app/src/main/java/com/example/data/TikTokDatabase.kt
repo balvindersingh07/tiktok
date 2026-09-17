@@ -6,8 +6,22 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [VideoEntity::class, CommentEntity::class, UserProfileEntity::class],
-    version = 1,
+    entities = [
+        VideoEntity::class,
+        CommentEntity::class,
+        UserProfileEntity::class,
+        NotificationEntity::class,
+        SoundEntity::class,
+        AnalyticsEventEntity::class,
+        ActiveSessionEntity::class,
+        DraftEntity::class,
+        FollowEntity::class,
+        DirectMessageEntity::class,
+        SearchHistoryEntity::class,
+        BlockedUserEntity::class,
+        MutedUserEntity::class
+    ],
+    version = 4,
     exportSchema = false
 )
 abstract class TikTokDatabase : RoomDatabase() {
@@ -22,8 +36,10 @@ abstract class TikTokDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     TikTokDatabase::class.java,
-                    "tiktok_database"
-                ).build()
+                    "tiktok_local_backend.db"
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

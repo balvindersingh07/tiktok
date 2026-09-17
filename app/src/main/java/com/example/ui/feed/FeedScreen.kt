@@ -1,5 +1,6 @@
 package com.example.ui.feed
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,6 +51,7 @@ import com.example.data.VideoEntity
 import com.example.ui.FeedCategory
 import com.example.ui.MainTab
 import com.example.ui.TikTokViewModel
+import com.example.ui.theme.RainbowHorizontalBrush
 import com.example.ui.theme.TikTokBlack
 import com.example.ui.theme.TikTokLivePulse
 import com.example.ui.theme.TikTokWhite
@@ -77,6 +80,23 @@ fun FeedScreen(
         pageCount = { filteredVideos.size.coerceAtLeast(1) }
     )
 
+    val targetVideoId by viewModel.targetFeedVideoId.collectAsStateWithLifecycle()
+    val autoplay by viewModel.preferences.autoplay.collectAsStateWithLifecycle()
+    val loopVideos by viewModel.preferences.loopVideos.collectAsStateWithLifecycle()
+    val dataSaver by viewModel.preferences.dataSaver.collectAsStateWithLifecycle()
+    val reduceMotion by viewModel.preferences.reduceMotion.collectAsStateWithLifecycle()
+
+    LaunchedEffect(targetVideoId, filteredVideos) {
+        val targetId = targetVideoId
+        if (targetId != null && filteredVideos.isNotEmpty()) {
+            val targetIndex = filteredVideos.indexOfFirst { it.id == targetId }
+            if (targetIndex >= 0) {
+                pagerState.scrollToPage(targetIndex)
+            }
+            viewModel.clearTargetFeedVideo()
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize().background(TikTokBlack)) {
         if (filteredVideos.isNotEmpty()) {
             VerticalPager(
@@ -88,15 +108,27 @@ fun FeedScreen(
                     derivedStateOf { pagerState.currentPage == page }
                 }
 
+                val isMuted by viewModel.isGlobalMuted.collectAsStateWithLifecycle()
+
                 VideoFeedItem(
                     video = video,
                     isActivePage = isActive.value,
+                    isMuted = isMuted,
+                    autoplay = autoplay,
+                    loopVideos = loopVideos,
+                    dataSaver = dataSaver,
+                    reduceMotion = reduceMotion,
                     onLikeClick = { viewModel.toggleLike(video) },
                     onCommentClick = { viewModel.openComments(video) },
                     onBookmarkClick = { viewModel.toggleBookmark(video) },
                     onShareClick = { viewModel.openShare(video) },
                     onFollowClick = { viewModel.toggleFollow(video) },
-                    onSoundClick = { viewModel.openSoundDetail(video) }
+                    onSoundClick = { viewModel.openSoundDetail(video) },
+                    onCreatorClick = { viewModel.openCreatorProfile(video.authorHandle) },
+                    onToggleMute = { viewModel.toggleMute() },
+                    onRecordView = { durationMs, completed ->
+                        viewModel.recordVideoView(video, durationMs, completed)
+                    }
                 )
             }
         }
@@ -235,10 +267,10 @@ fun FeedTabTitle(
         // Active indicator line
         Box(
             modifier = Modifier
-                .width(28.dp)
-                .height(2.5.dp)
+                .width(30.dp)
+                .height(3.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(if (isSelected) TikTokWhite else Color.Transparent)
+                .background(if (isSelected) RainbowHorizontalBrush else androidx.compose.ui.graphics.SolidColor(Color.Transparent))
         )
     }
 }

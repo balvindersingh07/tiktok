@@ -58,6 +58,8 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.VideoEntity
 import com.example.ui.feed.formatCount
+import com.example.ui.theme.RainbowAccentBrush
+import com.example.ui.theme.RainbowHorizontalBrush
 import com.example.ui.theme.TikTokBlack
 import com.example.ui.theme.TikTokCyan
 import com.example.ui.theme.TikTokDarkCard
@@ -74,13 +76,14 @@ data class TrendingTag(val name: String, val views: String, val description: Str
 fun DiscoverScreen(
     videos: List<VideoEntity>,
     onVideoClick: (VideoEntity) -> Unit,
+    onScanQrClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
     val trendingTags = listOf(
         TrendingTag("StreetDance", "8.4B", "Trending breakbeats & street styles"),
-        TrendingTag("FoodieTok", "14.2B", "Viral culinary recipes & reviews"),
+        TrendingTag("FoodieTashan", "14.2B", "Viral culinary recipes & reviews"),
         TrendingTag("TravelVibes", "5.1B", "Hidden paradises & wanderlust"),
         TrendingTag("DailyComedy", "12.8B", "Hilarious sketches & pets"),
         TrendingTag("TechRevealed", "3.2B", "Futuristic hardware unboxings")
@@ -150,7 +153,7 @@ fun DiscoverScreen(
             Spacer(modifier = Modifier.width(10.dp))
 
             IconButton(
-                onClick = { },
+                onClick = onScanQrClick,
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
@@ -230,23 +233,24 @@ fun DiscoverScreen(
                 }
             }
 
-            // Video Grid Items
-            item {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
+            // Video Grid Items (chunked for seamless, unlimited scrolling without nested scroll collisions)
+            items(filteredVideos.chunked(3)) { rowVideos ->
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(420.dp)
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    userScrollEnabled = false
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(filteredVideos) { video ->
-                        VideoThumbnailGridItem(
-                            video = video,
-                            onClick = { onVideoClick(video) }
-                        )
+                    rowVideos.forEach { video ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            VideoThumbnailGridItem(
+                                video = video,
+                                onClick = { onVideoClick(video) }
+                            )
+                        }
+                    }
+                    repeat(3 - rowVideos.size) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -262,15 +266,7 @@ fun TrendingHeroBanner() {
             .height(130.dp)
             .padding(horizontal = 14.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color(0xFF833AB4),
-                        TikTokPink,
-                        Color(0xFFFCB045)
-                    )
-                )
-            )
+            .background(RainbowHorizontalBrush)
             .padding(16.dp),
         contentAlignment = Alignment.CenterStart
     ) {

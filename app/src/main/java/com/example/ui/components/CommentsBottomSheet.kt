@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -54,6 +55,7 @@ import com.example.data.CommentEntity
 import com.example.data.VideoEntity
 import com.example.ui.feed.formatCount
 import com.example.ui.theme.TikTokBlack
+import com.example.ui.theme.TikTokCyan
 import com.example.ui.theme.TikTokDarkCard
 import com.example.ui.theme.TikTokDarkSurface
 import com.example.ui.theme.TikTokPink
@@ -61,6 +63,20 @@ import com.example.ui.theme.TikTokWhite
 import com.example.ui.theme.TikTokWhite40
 import com.example.ui.theme.TikTokWhite60
 import com.example.ui.theme.TikTokWhite80
+
+fun formatTimeAgo(timestampMs: Long): String {
+    val diff = System.currentTimeMillis() - timestampMs
+    val seconds = diff / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+    return when {
+        days > 0 -> "${days}d"
+        hours > 0 -> "${hours}h"
+        minutes > 0 -> "${minutes}m"
+        else -> "now"
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +86,11 @@ fun CommentsBottomSheet(
     onDismiss: () -> Unit,
     onAddComment: (String) -> Unit,
     onLikeComment: (CommentEntity) -> Unit,
+    replyingTo: CommentEntity? = null,
+    onReplyClick: (CommentEntity) -> Unit = {},
+    onCancelReply: () -> Unit = {},
+    onDeleteComment: (CommentEntity) -> Unit = {},
+    currentUserId: String = "",
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -144,88 +165,110 @@ fun CommentsBottomSheet(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Be the first to comment!",
-                        color = TikTokWhite60,
-                        fontSize = 14.sp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No comments yet",
+                            color = TikTokWhite,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Be the first to comment!",
+                            color = TikTokWhite60,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(comments, key = { it.id }) { comment ->
                         CommentItemRow(
                             comment = comment,
-                            onLikeClick = { onLikeComment(comment) }
+                            onLikeClick = { onLikeComment(comment) },
+                            onReplyClick = { onReplyClick(comment) },
+                            onDeleteClick = { onDeleteComment(comment) },
+                            isOwnComment = comment.authorId == currentUserId || comment.authorName == "Alex Rivera",
+                            isReply = comment.parentCommentId != null
                         )
                     }
                 }
             }
 
-            // Quick Emoji Chips
+            // Replying to banner
+            if (replyingTo != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E28))
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Replying to ${replyingTo.authorName}",
+                        color = TikTokCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Cancel",
+                        color = TikTokWhite60,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable(onClick = onCancelReply)
+                    )
+                }
+            }
+
+            // Quick Emoji Reaction Bar
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(emojiChips) { emoji ->
                     Box(
                         modifier = Modifier
+                            .size(34.dp)
                             .clip(CircleShape)
-                            .background(TikTokDarkCard)
+                            .background(Color(0xFF22222E))
                             .clickable {
                                 commentText += emoji
-                            }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(text = emoji, fontSize = 18.sp)
+                        Text(text = emoji, fontSize = 16.sp)
                     }
                 }
             }
 
-            // Bottom Input Bar
+            // Bottom Input Field
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(TikTokBlack)
                     .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // User avatar thumbnail
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF333333)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "A",
-                        color = TikTokWhite,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
                 OutlinedTextField(
                     value = commentText,
                     onValueChange = { commentText = it },
                     placeholder = {
-                        Text(text = "Add comment...", color = TikTokWhite60, fontSize = 14.sp)
+                        Text(
+                            text = if (replyingTo != null) "Reply to ${replyingTo.authorName}..." else "Add comment...",
+                            color = TikTokWhite40,
+                            fontSize = 14.sp
+                        )
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("comment_input_field"),
-                    shape = RoundedCornerShape(20.dp),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = TikTokDarkCard,
                         unfocusedContainerColor = TikTokDarkCard,
@@ -234,7 +277,11 @@ fun CommentsBottomSheet(
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent
                     ),
-                    singleLine = true
+                    shape = RoundedCornerShape(20.dp),
+                    singleLine = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("comment_input_field")
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -269,16 +316,22 @@ fun CommentsBottomSheet(
 fun CommentItemRow(
     comment: CommentEntity,
     onLikeClick: () -> Unit,
+    onReplyClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {},
+    isOwnComment: Boolean = false,
+    isReply: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = if (isReply) 32.dp else 0.dp),
         verticalAlignment = Alignment.Top
     ) {
         // Avatar
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(if (isReply) 28.dp else 36.dp)
                 .clip(CircleShape)
                 .background(Color(0xFF2E2E3A)),
             contentAlignment = Alignment.Center
@@ -287,7 +340,7 @@ fun CommentItemRow(
                 text = comment.authorName.take(1).uppercase(),
                 color = TikTokWhite,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontSize = if (isReply) 12.sp else 15.sp
             )
         }
 
@@ -295,12 +348,20 @@ fun CommentItemRow(
 
         // Content
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = comment.authorName,
-                color = TikTokWhite60,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = comment.authorName,
+                    color = TikTokWhite60,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "• ${formatTimeAgo(comment.timestamp)}",
+                    color = TikTokWhite40,
+                    fontSize = 11.sp
+                )
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = comment.content,
@@ -314,8 +375,20 @@ fun CommentItemRow(
                     text = "Reply",
                     color = TikTokWhite60,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable(onClick = onReplyClick)
                 )
+
+                if (isOwnComment) {
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = "Delete",
+                        color = TikTokPink.copy(alpha = 0.8f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable(onClick = onDeleteClick)
+                    )
+                }
             }
         }
 
