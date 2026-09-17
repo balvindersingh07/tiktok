@@ -465,6 +465,7 @@ class TikTokViewModel(application: Application) : AndroidViewModel(application) 
             val user = repository.backendServer.dao.getProfileByHandle(handle)
             if (user != null) {
                 viewingCreator.value = user
+                currentTab.value = MainTab.PROFILE
             } else {
                 _toastMessage.value = "Creator: $handle"
             }
@@ -473,6 +474,10 @@ class TikTokViewModel(application: Application) : AndroidViewModel(application) 
 
     fun closeCreatorProfile() {
         viewingCreator.value = null
+    }
+
+    fun handleLiveClick() {
+        _toastMessage.value = "No creators currently LIVE in your region 📡"
     }
 
     // ------------------------------------------------------------------------

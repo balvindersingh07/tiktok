@@ -138,6 +138,7 @@ fun FeedScreen(
             feedCategory = feedCategory,
             onCategorySelected = { viewModel.setFeedCategory(it) },
             onSearchClick = onNavigateToDiscover,
+            onLiveClick = { viewModel.handleLiveClick() },
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -152,6 +153,7 @@ fun TopFeedBar(
     feedCategory: FeedCategory,
     onCategorySelected: (FeedCategory) -> Unit,
     onSearchClick: () -> Unit,
+    onLiveClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Pulse animation for LIVE badge
@@ -177,7 +179,7 @@ fun TopFeedBar(
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color(0x33000000))
-                .clickable { }
+                .clickable { onLiveClick() }
                 .padding(horizontal = 8.dp, vertical = 4.dp)
                 .testTag("feed_live_button")
         ) {

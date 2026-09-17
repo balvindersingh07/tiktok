@@ -54,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -125,6 +126,9 @@ fun CreateVideoScreen(
         mutableStateOf(preSelectedSound?.author ?: "TikTok Music")
     }
     var showSoundPicker by remember { mutableStateOf(false) }
+
+    val cameraEffects = listOf("Natural", "Cyber Neon", "Golden Hour", "Vibrant Glow", "Emerald")
+    var selectedEffectIndex by remember { mutableIntStateOf(0) }
 
     // Upload / Publish Sheet state
     var showPublishSheet by remember { mutableStateOf(false) }
@@ -198,6 +202,22 @@ fun CreateVideoScreen(
                     )
                 )
         )
+
+        // Camera effect filter tint overlay
+        val effectTint = when (cameraEffects[selectedEffectIndex]) {
+            "Cyber Neon" -> Color(0x2E00F2FE)
+            "Golden Hour" -> Color(0x2EFFB300)
+            "Vibrant Glow" -> Color(0x2EFF0050)
+            "Emerald" -> Color(0x2E00E676)
+            else -> Color.Transparent
+        }
+        if (effectTint != Color.Transparent) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(effectTint)
+            )
+        }
 
         // Duet / Stitch Banner Indicator if active
         if (duetSourceVideo != null || stitchSourceVideo != null) {
@@ -363,19 +383,36 @@ fun CreateVideoScreen(
                 // Effects / Filters button
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { }
+                    modifier = Modifier
+                        .clickable {
+                            selectedEffectIndex = (selectedEffectIndex + 1) % cameraEffects.size
+                        }
+                        .testTag("camera_effects_button")
                 ) {
                     Box(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0x55000000)),
+                            .background(
+                                if (selectedEffectIndex > 0) TikTokPink.copy(alpha = 0.35f)
+                                else Color(0x55000000)
+                            )
+                            .border(
+                                width = if (selectedEffectIndex > 0) 1.5.dp else 0.dp,
+                                color = if (selectedEffectIndex > 0) TikTokPink else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(text = "✨", fontSize = 22.sp)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Effects", color = TikTokWhite, fontSize = 11.sp)
+                    Text(
+                        text = if (selectedEffectIndex == 0) "Effects" else cameraEffects[selectedEffectIndex],
+                        color = if (selectedEffectIndex > 0) TikTokPink else TikTokWhite,
+                        fontSize = 11.sp,
+                        fontWeight = if (selectedEffectIndex > 0) FontWeight.Bold else FontWeight.Normal
+                    )
                 }
 
                 // Big Red Record Button with Animated Progress Ring

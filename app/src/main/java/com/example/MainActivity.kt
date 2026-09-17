@@ -2,6 +2,7 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -102,6 +103,33 @@ fun TikTokApp(viewModel: TikTokViewModel) {
     val showBackendConsole by viewModel.showBackendConsole.collectAsStateWithLifecycle()
     val backendStats by viewModel.backendStats.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
+    val showSettingsSheet by viewModel.showSettingsSheet.collectAsStateWithLifecycle()
+
+    // Smooth system back-navigation handling across all sheets, sub-views, and tabs
+    BackHandler(
+        enabled = showBackendConsole ||
+                showSettingsSheet ||
+                activeQrVideo != null ||
+                activeSoundVideo != null ||
+                activeCommentVideo != null ||
+                activeShareVideo != null ||
+                activeChatUser != null ||
+                viewingCreator != null ||
+                currentTab != MainTab.HOME
+    ) {
+        when {
+            showBackendConsole -> viewModel.closeBackendConsole()
+            showSettingsSheet -> viewModel.closeSettings()
+            activeQrVideo != null -> viewModel.closeQrCode()
+            activeSoundVideo != null -> viewModel.closeSoundDetail()
+            activeCommentVideo != null -> viewModel.closeComments()
+            activeShareVideo != null -> viewModel.closeShare()
+            activeChatUser != null -> viewModel.closeChat()
+            viewingCreator != null -> viewModel.closeCreatorProfile()
+            currentTab == MainTab.CREATE -> viewModel.selectTab(MainTab.HOME)
+            currentTab != MainTab.HOME -> viewModel.selectTab(MainTab.HOME)
+        }
+    }
 
     LaunchedEffect(toastMessage) {
         if (toastMessage != null) {
@@ -153,6 +181,9 @@ fun TikTokApp(viewModel: TikTokViewModel) {
                             videos = allVideos,
                             onVideoClick = { video ->
                                 viewModel.playVideoInFeed(video.id)
+                            },
+                            onSearchSubmit = { query ->
+                                viewModel.performSearch(query)
                             },
                             onScanQrClick = {
                                 if (allVideos.isNotEmpty()) {
@@ -328,7 +359,6 @@ fun TikTokApp(viewModel: TikTokViewModel) {
         }
 
         // Tashan Settings and Privacy Sheet
-        val showSettingsSheet by viewModel.showSettingsSheet.collectAsStateWithLifecycle()
         if (showSettingsSheet) {
             TashanSettingsSheet(
                 viewModel = viewModel,

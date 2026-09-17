@@ -186,14 +186,14 @@ fun ProfileScreen(
             )
 
             IconButton(
-                onClick = onOpenBackendConsole,
+                onClick = onOpenSettings,
                 modifier = Modifier
                     .size(36.dp)
-                    .testTag("profile_backend_menu_button")
+                    .testTag("profile_settings_menu_button")
             ) {
                 Icon(
                     imageVector = Icons.Filled.Menu,
-                    contentDescription = "Settings & Backend Menu",
+                    contentDescription = "Settings & Privacy Menu",
                     tint = TikTokWhite
                 )
             }

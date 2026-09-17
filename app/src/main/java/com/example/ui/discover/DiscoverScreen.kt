@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.MusicNote
@@ -53,6 +55,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -76,6 +79,7 @@ data class TrendingTag(val name: String, val views: String, val description: Str
 fun DiscoverScreen(
     videos: List<VideoEntity>,
     onVideoClick: (VideoEntity) -> Unit,
+    onSearchSubmit: (String) -> Unit = {},
     onScanQrClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -147,7 +151,15 @@ fun DiscoverScreen(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (searchQuery.isNotBlank()) {
+                            onSearchSubmit(searchQuery.trim())
+                        }
+                    }
+                )
             )
 
             Spacer(modifier = Modifier.width(10.dp))
@@ -209,7 +221,10 @@ fun DiscoverScreen(
                         items(trendingTags) { tag ->
                             TrendingTagCard(
                                 tag = tag,
-                                onClick = { searchQuery = tag.name }
+                                onClick = {
+                                    searchQuery = tag.name
+                                    onSearchSubmit(tag.name)
+                                }
                             )
                         }
                     }
