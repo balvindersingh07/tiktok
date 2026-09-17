@@ -499,93 +499,129 @@ export class VideoRepository {
   }
 
   async like(userId: string, videoId: string): Promise<{ isLiked: boolean; likesCount: number }> {
-    const existing = await query(
-      'SELECT user_id FROM video_likes WHERE user_id = $1 AND video_id = $2',
-      [userId, videoId]
-    );
-
-    let isLiked = false;
-    if (existing.rows.length > 0) {
-      await query('DELETE FROM video_likes WHERE user_id = $1 AND video_id = $2', [userId, videoId]);
-      await query(
-        'UPDATE videos SET likes_count = GREATEST(0, likes_count - 1) WHERE id = $1',
-        [videoId]
-      );
-      // Decrement creator total likes
-      await query(
-        `UPDATE profiles SET likes_count = GREATEST(0, likes_count - 1)
-         WHERE user_id = (SELECT author_id FROM videos WHERE id = $1)`,
-        [videoId]
-      );
-      isLiked = false;
-    } else {
-      await query('INSERT INTO video_likes (user_id, video_id) VALUES ($1, $2)', [userId, videoId]);
-      await query('UPDATE videos SET likes_count = likes_count + 1 WHERE id = $1', [videoId]);
-      // Increment creator total likes
-      await query(
-        `UPDATE profiles SET likes_count = likes_count + 1
-         WHERE user_id = (SELECT author_id FROM videos WHERE id = $1)`,
-        [videoId]
-      );
-      isLiked = true;
+    const videoCheck = await query('SELECT id FROM videos WHERE id = $1', [videoId]);
+    if (videoCheck.rows.length === 0) {
+      return { isLiked: false, likesCount: 0 };
     }
 
-    const countRes = await query('SELECT likes_count FROM videos WHERE id = $1', [videoId]);
-    const likesCount = Number(countRes.rows[0]?.likes_count || 0);
+    try {
+      const existing = await query(
+        'SELECT user_id FROM video_likes WHERE user_id = $1 AND video_id = $2',
+        [userId, videoId]
+      );
 
-    return { isLiked, likesCount };
+      let isLiked = false;
+      if (existing.rows.length > 0) {
+        await query('DELETE FROM video_likes WHERE user_id = $1 AND video_id = $2', [userId, videoId]);
+        await query(
+          'UPDATE videos SET likes_count = GREATEST(0, likes_count - 1) WHERE id = $1',
+          [videoId]
+        );
+        // Decrement creator total likes
+        await query(
+          `UPDATE profiles SET likes_count = GREATEST(0, likes_count - 1)
+           WHERE user_id = (SELECT author_id FROM videos WHERE id = $1)`,
+          [videoId]
+        );
+        isLiked = false;
+      } else {
+        await query('INSERT INTO video_likes (user_id, video_id) VALUES ($1, $2)', [userId, videoId]);
+        await query('UPDATE videos SET likes_count = likes_count + 1 WHERE id = $1', [videoId]);
+        // Increment creator total likes
+        await query(
+          `UPDATE profiles SET likes_count = likes_count + 1
+           WHERE user_id = (SELECT author_id FROM videos WHERE id = $1)`,
+          [videoId]
+        );
+        isLiked = true;
+      }
+
+      const countRes = await query('SELECT likes_count FROM videos WHERE id = $1', [videoId]);
+      const likesCount = Number(countRes.rows[0]?.likes_count || 0);
+
+      return { isLiked, likesCount };
+    } catch (err: any) {
+      if (err?.code === '23503') {
+        return { isLiked: false, likesCount: 0 };
+      }
+      throw err;
+    }
   }
 
   async save(userId: string, videoId: string): Promise<{ isSaved: boolean; savesCount: number }> {
-    const existing = await query(
-      'SELECT user_id FROM video_saves WHERE user_id = $1 AND video_id = $2',
-      [userId, videoId]
-    );
-
-    let isSaved = false;
-    if (existing.rows.length > 0) {
-      await query('DELETE FROM video_saves WHERE user_id = $1 AND video_id = $2', [userId, videoId]);
-      await query(
-        'UPDATE videos SET saves_count = GREATEST(0, saves_count - 1) WHERE id = $1',
-        [videoId]
-      );
-      isSaved = false;
-    } else {
-      await query('INSERT INTO video_saves (user_id, video_id) VALUES ($1, $2)', [userId, videoId]);
-      await query('UPDATE videos SET saves_count = saves_count + 1 WHERE id = $1', [videoId]);
-      isSaved = true;
+    const videoCheck = await query('SELECT id FROM videos WHERE id = $1', [videoId]);
+    if (videoCheck.rows.length === 0) {
+      return { isSaved: false, savesCount: 0 };
     }
 
-    const countRes = await query('SELECT saves_count FROM videos WHERE id = $1', [videoId]);
-    const savesCount = Number(countRes.rows[0]?.saves_count || 0);
+    try {
+      const existing = await query(
+        'SELECT user_id FROM video_saves WHERE user_id = $1 AND video_id = $2',
+        [userId, videoId]
+      );
 
-    return { isSaved, savesCount };
+      let isSaved = false;
+      if (existing.rows.length > 0) {
+        await query('DELETE FROM video_saves WHERE user_id = $1 AND video_id = $2', [userId, videoId]);
+        await query(
+          'UPDATE videos SET saves_count = GREATEST(0, saves_count - 1) WHERE id = $1',
+          [videoId]
+        );
+        isSaved = false;
+      } else {
+        await query('INSERT INTO video_saves (user_id, video_id) VALUES ($1, $2)', [userId, videoId]);
+        await query('UPDATE videos SET saves_count = saves_count + 1 WHERE id = $1', [videoId]);
+        isSaved = true;
+      }
+
+      const countRes = await query('SELECT saves_count FROM videos WHERE id = $1', [videoId]);
+      const savesCount = Number(countRes.rows[0]?.saves_count || 0);
+
+      return { isSaved, savesCount };
+    } catch (err: any) {
+      if (err?.code === '23503') {
+        return { isSaved: false, savesCount: 0 };
+      }
+      throw err;
+    }
   }
 
   async repost(userId: string, videoId: string): Promise<{ isReposted: boolean; repostsCount: number }> {
-    const existing = await query(
-      'SELECT user_id FROM video_reposts WHERE user_id = $1 AND video_id = $2',
-      [userId, videoId]
-    );
-
-    let isReposted = false;
-    if (existing.rows.length > 0) {
-      await query('DELETE FROM video_reposts WHERE user_id = $1 AND video_id = $2', [userId, videoId]);
-      await query(
-        'UPDATE videos SET reposts_count = GREATEST(0, reposts_count - 1) WHERE id = $1',
-        [videoId]
-      );
-      isReposted = false;
-    } else {
-      await query('INSERT INTO video_reposts (user_id, video_id) VALUES ($1, $2)', [userId, videoId]);
-      await query('UPDATE videos SET reposts_count = reposts_count + 1 WHERE id = $1', [videoId]);
-      isReposted = true;
+    const videoCheck = await query('SELECT id FROM videos WHERE id = $1', [videoId]);
+    if (videoCheck.rows.length === 0) {
+      return { isReposted: false, repostsCount: 0 };
     }
 
-    const countRes = await query('SELECT reposts_count FROM videos WHERE id = $1', [videoId]);
-    const repostsCount = Number(countRes.rows[0]?.reposts_count || 0);
+    try {
+      const existing = await query(
+        'SELECT user_id FROM video_reposts WHERE user_id = $1 AND video_id = $2',
+        [userId, videoId]
+      );
 
-    return { isReposted, repostsCount };
+      let isReposted = false;
+      if (existing.rows.length > 0) {
+        await query('DELETE FROM video_reposts WHERE user_id = $1 AND video_id = $2', [userId, videoId]);
+        await query(
+          'UPDATE videos SET reposts_count = GREATEST(0, reposts_count - 1) WHERE id = $1',
+          [videoId]
+        );
+        isReposted = false;
+      } else {
+        await query('INSERT INTO video_reposts (user_id, video_id) VALUES ($1, $2)', [userId, videoId]);
+        await query('UPDATE videos SET reposts_count = reposts_count + 1 WHERE id = $1', [videoId]);
+        isReposted = true;
+      }
+
+      const countRes = await query('SELECT reposts_count FROM videos WHERE id = $1', [videoId]);
+      const repostsCount = Number(countRes.rows[0]?.reposts_count || 0);
+
+      return { isReposted, repostsCount };
+    } catch (err: any) {
+      if (err?.code === '23503') {
+        return { isReposted: false, repostsCount: 0 };
+      }
+      throw err;
+    }
   }
 
   async recordView(data: {
@@ -595,41 +631,47 @@ export class VideoRepository {
     completionPercent?: number;
     ipAddress?: string | null;
   }): Promise<void> {
+    // Validate video existence to prevent foreign key violations on non-existent or client-transient IDs
+    const videoCheck = await query('SELECT id FROM videos WHERE id = $1', [data.videoId]);
+    if (videoCheck.rows.length === 0) {
+      return;
+    }
+
     const id = `vw_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
     const duration = data.durationMs || 0;
     const completion = data.completionPercent || 0;
-    // Sanitize and truncate IP safely to prevent varchar overflow
-    const sanitizedIp = data.ipAddress
-      ? data.ipAddress.split(',')[0].trim().slice(0, 45)
-      : null;
 
     try {
-      // Ensure target video exists before inserting foreign key relation
-      const videoExists = await query('SELECT id FROM videos WHERE id = $1', [data.videoId]);
-      if (videoExists.rows.length > 0) {
-        await query(
-          `INSERT INTO video_views (id, video_id, viewer_id, watch_duration_ms, completion_percent, is_complete, ip_address)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            id,
-            data.videoId,
-            data.viewerId || null,
-            duration,
-            completion,
-            completion >= 0.9,
-            sanitizedIp,
-          ]
-        );
+      await query(
+        `INSERT INTO video_views (id, video_id, viewer_id, watch_duration_ms, completion_percent, is_complete, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          id,
+          data.videoId,
+          data.viewerId || null,
+          duration,
+          completion,
+          completion >= 0.9,
+          data.ipAddress || null,
+        ]
+      );
 
-        // Atomically increment video view count
-        await query('UPDATE videos SET views_count = views_count + 1 WHERE id = $1', [data.videoId]);
+      // Atomically increment video view count
+      await query('UPDATE videos SET views_count = views_count + 1 WHERE id = $1', [data.videoId]);
+    } catch (err: any) {
+      // Gracefully ignore foreign key constraint violations if the video was concurrently deleted
+      if (err?.code === '23503') {
+        return;
       }
-    } catch (err) {
-      console.warn('Non-fatal error in recordView:', err);
+      throw err;
     }
   }
 
   async incrementShare(videoId: string): Promise<number> {
+    const videoCheck = await query('SELECT id FROM videos WHERE id = $1', [videoId]);
+    if (videoCheck.rows.length === 0) {
+      return 0;
+    }
     await query('UPDATE videos SET shares_count = shares_count + 1 WHERE id = $1', [videoId]);
     const countRes = await query('SELECT shares_count FROM videos WHERE id = $1', [videoId]);
     return Number(countRes.rows[0]?.shares_count || 0);
@@ -692,7 +734,7 @@ export class VideoRepository {
   private formatVideoRow(row: any): any {
     return {
       ...row,
-      id: isNaN(Number(row.id)) ? row.id : Number(row.id),
+      id: row.id,
       likesCount: Number(row.likesCount || 0),
       commentsCount: Number(row.commentsCount || 0),
       sharesCount: Number(row.sharesCount || 0),

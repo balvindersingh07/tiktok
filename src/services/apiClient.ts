@@ -176,6 +176,79 @@ export const api = {
       return res.json();
     },
 
+    async createUploadSession(filename: string, contentType: string, sizeBytes: number) {
+      return request<{
+        success: boolean;
+        sessionId: string;
+        uploadUrl: string;
+        method: string;
+        headers: Record<string, string>;
+        key: string;
+        sessionToken: string;
+        publicUrl: string;
+        expiresIn: number;
+      }>('/videos/upload-session', {
+        method: 'POST',
+        body: JSON.stringify({ filename, contentType, sizeBytes }),
+      });
+    },
+
+    async directUploadToStorage(uploadUrl: string, method: string, data: Blob | ArrayBuffer, headers?: Record<string, string>) {
+      const res = await fetch(uploadUrl, {
+        method: method || 'PUT',
+        headers: headers || { 'Content-Type': 'video/mp4' },
+        body: data,
+      });
+      if (!res.ok) {
+        throw new Error(`Direct storage upload failed with status ${res.status}`);
+      }
+      return res.json().catch(() => ({ success: true }));
+    },
+
+    async confirmUpload(payload: {
+      key: string;
+      sessionId?: string;
+      caption?: string;
+      soundTitle?: string;
+      soundAuthor?: string;
+      soundId?: string | null;
+      category?: string;
+      hashtags?: string;
+      isPrivate?: boolean;
+      allowComments?: boolean;
+    }) {
+      return request<{
+        success: boolean;
+        videoId: string;
+        jobId: string;
+        status: string;
+        video: any;
+      }>('/videos/confirm-upload', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+
+    async getProcessingStatus(jobId: string) {
+      return request<{
+        success: boolean;
+        jobId: string;
+        videoId: string;
+        status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+        attempts: number;
+        errorMessage?: string;
+        video: {
+          id: string;
+          status: string;
+          videoUrl: string;
+          thumbnailUrl: string;
+          durationSeconds: number;
+          width?: number;
+          height?: number;
+        };
+      }>(`/videos/processing-status/${jobId}`);
+    },
+
     async toggleLike(videoId: string | number) {
       return request(`/videos/${videoId}/like`, { method: 'POST' });
     },

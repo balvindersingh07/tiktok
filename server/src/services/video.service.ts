@@ -4,6 +4,8 @@ import { notificationRepository } from '../repositories/notification.repository.
 import { soundRepository } from '../repositories/sound.repository.js';
 import { eventBus } from '../utils/eventBus.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
+import { storageService } from './storage.service.js';
+import { query } from '../db/index.js';
 
 export class VideoService {
   async publishVideo(authorId: string, data: {
@@ -23,11 +25,12 @@ export class VideoService {
     allowStitch?: boolean;
     duetWithVideoId?: string | null;
     stitchWithVideoId?: string | null;
+    status?: 'UPLOAD_PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
   }) {
     const videoId = `vid_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
-
-    // Default assets if none provided
-    const videoUrl = data.videoPath || '/assets/sample_clip_dance.mp4';
+    const sourceStorageKey = data.sourceStorageKey || data.videoPath || '';
+    const initialStatus = data.status || (sourceStorageKey ? 'PROCESSING' : 'READY');
+    const videoUrl = data.videoPath || (sourceStorageKey ? storageService.getFileUrl(sourceStorageKey) : '/storage/videos/vid_001.mp4');
     const coverRes = data.coverResName || 'video_cover_dance';
 
     const video = await videoRepository.create({
@@ -37,7 +40,7 @@ export class VideoService {
       soundId: data.soundId || null,
       soundTitle: data.soundTitle || 'Original Audio',
       soundAuthor: data.soundAuthor || 'Creator',
-      sourceStorageKey: data.sourceStorageKey || videoUrl,
+      sourceStorageKey,
       videoUrl,
       coverResName: coverRes,
       durationSeconds: data.durationSeconds || 15,
@@ -49,7 +52,7 @@ export class VideoService {
       allowStitch: data.allowStitch ?? true,
       duetWithVideoId: data.duetWithVideoId || null,
       stitchWithVideoId: data.stitchWithVideoId || null,
-      status: 'READY',
+      status: initialStatus,
     });
 
     // If a sound is attached, increment its usage
@@ -59,13 +62,53 @@ export class VideoService {
 
     // Trigger asynchronous transcoding/thumbnail queue
     const jobId = `job_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
-    await videoRepository.createProcessingJob({
-      id: jobId,
-      videoId,
-      sourceStorageKey: videoUrl,
-    });
+    if (sourceStorageKey) {
+      await videoRepository.createProcessingJob({
+        id: jobId,
+        videoId,
+        sourceStorageKey,
+      });
+    }
 
-    return video;
+    return {
+      ...video,
+      jobId,
+      status: initialStatus,
+    };
+  }
+
+  async getProcessingJobStatus(jobId: string) {
+    const res = await query(
+      `SELECT j.id, j.video_id, j.source_storage_key, j.status, j.attempts, j.max_attempts, j.error_message, j.created_at, j.updated_at,
+              v.video_url, v.thumbnail_url, v.status as video_status, v.duration_seconds, v.width, v.height
+       FROM video_processing_jobs j
+       LEFT JOIN videos v ON j.video_id = v.id
+       WHERE j.id = $1 OR j.video_id = $1`,
+      [jobId]
+    );
+    if (res.rows.length === 0) {
+      throw new NotFoundError('Processing job not found');
+    }
+    const row = res.rows[0];
+    return {
+      jobId: row.id,
+      videoId: row.video_id,
+      status: row.status,
+      attempts: row.attempts,
+      maxAttempts: row.max_attempts,
+      errorMessage: row.error_message,
+      video: {
+        id: row.video_id,
+        status: row.video_status,
+        videoUrl: row.video_url,
+        thumbnailUrl: row.thumbnail_url,
+        durationSeconds: row.duration_seconds,
+        width: row.width,
+        height: row.height,
+      },
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
   }
 
   async getVideoById(id: string | number, viewerId: string = 'anonymous') {
@@ -159,10 +202,30 @@ export class VideoService {
   }
 
   async deleteVideo(videoId: string | number, authorId: string) {
-    const deleted = await videoRepository.deleteVideo(String(videoId), authorId);
+    const stringId = String(videoId);
+    const existing = await videoRepository.findById(stringId, authorId);
+    if (!existing) {
+      throw new NotFoundError('Video not found');
+    }
+    if (existing.authorId !== authorId) {
+      throw new ForbiddenError('Not authorized to delete this video');
+    }
+    const deleted = await videoRepository.deleteVideo(stringId, authorId);
     if (!deleted) {
       throw new ForbiddenError('Not authorized to delete this video');
     }
+
+    // Clean up media files
+    if (existing.sourceStorageKey) {
+      await storageService.deleteFile(existing.sourceStorageKey).catch(() => {});
+    }
+    if (existing.videoUrl && existing.videoUrl.startsWith('/storage/')) {
+      await storageService.deleteFile(existing.videoUrl).catch(() => {});
+    }
+    if (existing.thumbnailUrl && existing.thumbnailUrl.startsWith('/storage/')) {
+      await storageService.deleteFile(existing.thumbnailUrl).catch(() => {});
+    }
+
     return { success: true };
   }
 

@@ -59,7 +59,7 @@ export const INITIAL_PROFILES: UserProfileEntity[] = [
 
 export const INITIAL_VIDEOS: VideoEntity[] = [
   {
-    id: 1,
+    id: "vid_001",
     authorId: "user_elena",
     authorName: "Marcus Moves",
     authorHandle: "@marcus_moves",
@@ -87,7 +87,7 @@ export const INITIAL_VIDEOS: VideoEntity[] = [
     timestamp: Date.now() - 1000 * 60 * 60 * 4,
   },
   {
-    id: 2,
+    id: "vid_002",
     authorId: "creator_ramen",
     authorName: "Chef Ramen King",
     authorHandle: "@chef_ramen",
@@ -115,7 +115,7 @@ export const INITIAL_VIDEOS: VideoEntity[] = [
     timestamp: Date.now() - 1000 * 60 * 60 * 12,
   },
   {
-    id: 3,
+    id: "vid_003",
     authorId: "user_maya",
     authorName: "Maya Wanderlust",
     authorHandle: "@maya_traveler",
@@ -146,7 +146,7 @@ export const INITIAL_VIDEOS: VideoEntity[] = [
 
 export const ADDITIONAL_SEED_CLIPS: VideoEntity[] = [
   {
-    id: 4,
+    id: "vid_004",
     authorId: "user_jordan",
     authorName: "Jordan Skate",
     authorHandle: "@jordan_skates",
@@ -174,7 +174,7 @@ export const ADDITIONAL_SEED_CLIPS: VideoEntity[] = [
     timestamp: Date.now() - 1000 * 60 * 60 * 36,
   },
   {
-    id: 5,
+    id: "vid_005",
     authorId: "user_matcha",
     authorName: "Matcha Master",
     authorHandle: "@matcha_art",
@@ -202,7 +202,7 @@ export const ADDITIONAL_SEED_CLIPS: VideoEntity[] = [
     timestamp: Date.now() - 1000 * 60 * 60 * 48,
   },
   {
-    id: 6,
+    id: "vid_006",
     authorId: "user_nordic",
     authorName: "Nordic Hikes",
     authorHandle: "@nordic_explorer",
@@ -234,7 +234,7 @@ export const ADDITIONAL_SEED_CLIPS: VideoEntity[] = [
 export const INITIAL_COMMENTS: CommentEntity[] = [
   {
     id: 1,
-    videoId: 1,
+    videoId: "vid_001",
     authorId: "user_elena_theo",
     authorName: "Elena Theo",
     authorHandle: "@elena_theo",
@@ -246,7 +246,7 @@ export const INITIAL_COMMENTS: CommentEntity[] = [
   },
   {
     id: 2,
-    videoId: 1,
+    videoId: "vid_001",
     authorId: "user_kai",
     authorName: "Kai Rhythm",
     authorHandle: "@kairhythm",
@@ -258,7 +258,7 @@ export const INITIAL_COMMENTS: CommentEntity[] = [
   },
   {
     id: 3,
-    videoId: 2,
+    videoId: "vid_002",
     authorId: "user_gourmet",
     authorName: "Gourmet Guy",
     authorHandle: "@gourmet_guy",

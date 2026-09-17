@@ -1,41 +1,51 @@
 import { Hono } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
-import { createVideoSchema, videoQuerySchema, createCommentSchema } from '../schemas/index.js';
 import { videoService } from '../services/video.service.js';
 import { commentService } from '../services/comment.service.js';
 import { storageService } from '../services/storage.service.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
-import { rateLimit } from '../middleware/rateLimit.js';
+import { uploadLimiter } from '../middleware/rateLimit.js';
+import { createVideoSchema, createCommentSchema } from '../schemas/index.js';
 import { getClientIp } from '../utils/ip.js';
+import { z } from 'zod';
 
 export const videosRouter = new Hono();
 
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: 'Upload limit reached, please wait a minute.',
+const uploadSessionSchema = z.object({
+  filename: z.string().min(1).max(255),
+  contentType: z.string().min(1).max(128),
+  sizeBytes: z.number().int().positive().max(100 * 1024 * 1024), // 100MB
 });
 
-// GET /api/videos - Query videos
+const confirmUploadSchema = z.object({
+  key: z.string().min(1),
+  sessionId: z.string().optional(),
+  sessionToken: z.string().optional(),
+  caption: z.string().max(2000).optional().default(''),
+  soundTitle: z.string().max(255).optional().default('Original Sound'),
+  soundAuthor: z.string().max(255).optional(),
+  soundId: z.string().optional().nullable(),
+  category: z.string().max(64).optional().default('fyp'),
+  hashtags: z.string().optional().default(''),
+  isPrivate: z.boolean().optional().default(false),
+  allowComments: z.boolean().optional().default(true),
+  allowDuet: z.boolean().optional().default(true),
+  allowStitch: z.boolean().optional().default(true),
+  duetWithVideoId: z.string().optional().nullable(),
+  stitchWithVideoId: z.string().optional().nullable(),
+});
+
+// GET /api/videos - Feed fallback / query
 videosRouter.get('/', optionalAuth, async (c) => {
-  const q = videoQuerySchema.parse(c.req.query());
   const currentUser = c.get('user');
   const viewerId = currentUser?.userId || 'anonymous';
+  const q = c.req.query();
 
-  if (q.authorId) {
-    const videos = await videoService.getAuthorVideos(q.authorId, viewerId);
-    return c.json({ success: true, videos, count: videos.length });
-  }
-
-  const result = await videoService.getAuthorVideos(viewerId, viewerId).catch(() => []);
-  const feed = await videoService.getVideoById(1, viewerId).catch(() => null);
-
-  // Default query to feed
   const { videos, nextCursor, hasMore } = await (await import('../services/feed.service.js')).feedService.getForYouFeed({
     viewerId,
     category: q.category,
     cursor: q.cursor,
-    limit: q.limit,
+    limit: q.limit ? parseInt(q.limit, 10) : 20,
   });
 
   return c.json({
@@ -44,6 +54,99 @@ videosRouter.get('/', optionalAuth, async (c) => {
     nextCursor,
     hasMore,
     count: videos.length,
+  });
+});
+
+// 1. POST /api/videos/upload-session - Step 1 of direct object upload
+// Generates presigned upload URL and session token so Android / client uploads directly to object storage
+videosRouter.post('/upload-session', requireAuth, uploadLimiter, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const data = uploadSessionSchema.parse(body);
+
+  const session = await storageService.createUploadSession(
+    user.userId,
+    data.filename,
+    data.contentType,
+    data.sizeBytes
+  );
+
+  return c.json({
+    success: true,
+    sessionId: session.sessionId,
+    uploadUrl: session.uploadUrl,
+    method: session.method,
+    headers: session.headers,
+    key: session.key,
+    sessionToken: session.sessionToken,
+    publicUrl: session.publicUrl,
+    expiresIn: session.expiresIn,
+  });
+});
+
+// 2. POST /api/videos/confirm-upload - Step 2 after client finishes direct upload to storage
+// Validates uploaded media file, registers video in 'PROCESSING', and enqueues FFmpeg job
+videosRouter.post('/confirm-upload', requireAuth, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const data = confirmUploadSchema.parse(body);
+
+  // Verify file exists in storage
+  const exists = await storageService.exists(data.key);
+  if (!exists) {
+    return c.json({
+      success: false,
+      error: 'Uploaded media file not found in storage. Please complete the direct upload first.',
+    }, 400);
+  }
+
+  const fileSize = await storageService.getFileSize(data.key);
+  if (fileSize <= 0) {
+    return c.json({
+      success: false,
+      error: 'Uploaded file is empty (0 bytes)',
+    }, 400);
+  }
+
+  if (data.sessionId) {
+    await storageService.updateUploadSessionStatus(data.sessionId, 'CONFIRMED', fileSize);
+  }
+
+  const video = await videoService.publishVideo(user.userId, {
+    caption: data.caption,
+    soundTitle: data.soundTitle,
+    soundAuthor: data.soundAuthor || user.handle,
+    soundId: data.soundId,
+    sourceStorageKey: data.key,
+    videoPath: storageService.getFileUrl(data.key),
+    category: data.category,
+    hashtags: data.hashtags,
+    isPrivate: data.isPrivate,
+    allowComments: data.allowComments,
+    allowDuet: data.allowDuet,
+    allowStitch: data.allowStitch,
+    duetWithVideoId: data.duetWithVideoId,
+    stitchWithVideoId: data.stitchWithVideoId,
+    status: 'PROCESSING',
+  });
+
+  return c.json({
+    success: true,
+    videoId: video.id,
+    jobId: video.jobId,
+    status: 'PROCESSING',
+    message: 'Video upload confirmed. Enqueued for FFmpeg processing and transcoding.',
+    video,
+  }, 201);
+});
+
+// 3. GET /api/videos/processing-status/:jobId - Poll video transcoding status
+videosRouter.get('/processing-status/:jobId', optionalAuth, async (c) => {
+  const jobId = c.req.param('jobId');
+  const status = await videoService.getProcessingJobStatus(jobId);
+  return c.json({
+    success: true,
+    ...status,
   });
 });
 
@@ -60,7 +163,7 @@ videosRouter.get('/:id', optionalAuth, async (c) => {
   });
 });
 
-// POST /api/videos - Publish metadata
+// POST /api/videos - Publish metadata only
 videosRouter.post('/', requireAuth, async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
@@ -95,7 +198,7 @@ videosRouter.post('/', requireAuth, async (c) => {
   );
 });
 
-// POST /api/videos/upload - Video media file upload & storage integration
+// POST /api/videos/upload - Multipart fallback upload with integrated FFmpeg queue
 videosRouter.post('/upload', requireAuth, uploadLimiter, async (c) => {
   const user = c.get('user');
   const body = await c.req.parseBody();
@@ -108,19 +211,29 @@ videosRouter.post('/upload', requireAuth, uploadLimiter, async (c) => {
   const soundId = (body['soundId'] as string) || null;
   const file = body['file'];
 
-  let videoUrl = '/assets/sample_clip_dance.mp4';
   let storageKey = '';
+  let videoUrl = '';
 
   if (file && typeof file === 'object' && 'arrayBuffer' in file) {
     const origName = (file as any).name || 'video.mp4';
     const ext = origName.split('.').pop() || 'mp4';
-    const filename = `videos/${Date.now()}_${uuidv4().slice(0, 8)}.${ext}`;
-    const buffer = Buffer.from(await (file as any).arrayBuffer());
     const mimeType = (file as any).type || 'video/mp4';
 
+    const validation = storageService.validateVideoUpload(mimeType, (file as any).size || 1000);
+    if (!validation.valid) {
+      return c.json({ success: false, error: validation.error }, 400);
+    }
+
+    const filename = `raw_videos/usr_${user.userId.slice(0, 16)}_${Date.now()}_${uuidv4().slice(0, 8)}.${ext}`;
+    const buffer = Buffer.from(await (file as any).arrayBuffer());
+
     const uploadRes = await storageService.uploadFile(filename, buffer, mimeType);
-    videoUrl = uploadRes.url;
     storageKey = uploadRes.key;
+    videoUrl = uploadRes.url;
+  } else {
+    // Default sample if no file passed
+    storageKey = 'videos/vid_001.mp4';
+    videoUrl = storageService.getFileUrl(storageKey);
   }
 
   const video = await videoService.publishVideo(user.userId, {
@@ -129,17 +242,19 @@ videosRouter.post('/upload', requireAuth, uploadLimiter, async (c) => {
     soundAuthor,
     soundId,
     videoPath: videoUrl,
-    sourceStorageKey: storageKey || videoUrl,
+    sourceStorageKey: storageKey,
     coverResName: 'video_cover_dance',
     category,
     hashtags,
-    durationSeconds: 15,
+    status: 'PROCESSING',
   });
 
   return c.json({
     success: true,
-    videoId: isNaN(Number(video.id)) ? video.id : Number(video.id),
+    videoId: video.id,
+    jobId: video.jobId,
     videoUrl,
+    status: 'PROCESSING',
     video,
   });
 });
@@ -183,7 +298,7 @@ videosRouter.post('/:id/repost', requireAuth, async (c) => {
   });
 });
 
-// POST /api/videos/:id/view - Real engagement recording
+// POST /api/videos/:id/view - Real engagement recording with sanitized IP
 videosRouter.post('/:id/view', optionalAuth, async (c) => {
   const videoId = c.req.param('id');
   const currentUser = c.get('user');
@@ -272,7 +387,7 @@ videosRouter.delete('/comments/:id', requireAuth, async (c) => {
   });
 });
 
-// DELETE /api/videos/:id
+// DELETE /api/videos/:id - Deletes video and cleans up remote storage media
 videosRouter.delete('/:id', requireAuth, async (c) => {
   const user = c.get('user');
   const videoId = c.req.param('id');
@@ -280,6 +395,6 @@ videosRouter.delete('/:id', requireAuth, async (c) => {
 
   return c.json({
     success: true,
-    message: 'Video deleted',
+    message: 'Video and remote media deleted successfully',
   });
 });

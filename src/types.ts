@@ -5,7 +5,7 @@ export type FeedCategory = 'FOLLOWING' | 'FOR_YOU';
 export type ProfileSubTab = 'MY_VIDEOS' | 'LIKED_VIDEOS' | 'BOOKMARKED' | 'PRIVATE' | 'DRAFTS';
 
 export interface VideoEntity {
-  id: number;
+  id: string | number;
   authorId: string;
   authorName: string;
   authorHandle: string;
@@ -32,15 +32,15 @@ export interface VideoEntity {
   allowStitch: boolean;
   hashtags: string;
   category: string; // 'fyp', 'following', 'trending', 'dance', 'tech', 'food'
-  duetWithVideoId?: number | null;
-  stitchWithVideoId?: number | null;
+  duetWithVideoId?: string | number | null;
+  stitchWithVideoId?: string | number | null;
   timestamp: number;
 }
 
 export interface CommentEntity {
-  id: number;
-  videoId: number;
-  parentCommentId?: number | null;
+  id: string | number;
+  videoId: string | number;
+  parentCommentId?: string | number | null;
   authorId: string;
   authorName: string;
   authorHandle: string;
@@ -77,7 +77,7 @@ export interface ActiveSessionEntity {
 }
 
 export interface DraftEntity {
-  id: number;
+  id: string | number;
   authorId: string;
   caption: string;
   soundTitle: string;
@@ -131,12 +131,12 @@ export interface MutedUserEntity {
 }
 
 export interface NotificationEntity {
-  id: number;
+  id: string | number;
   actorName: string;
   actorHandle: string;
   actionText: string;
   type: 'like' | 'comment' | 'follow' | 'repost' | 'mention' | 'reply' | 'system';
-  targetVideoId?: number | null;
+  targetVideoId?: string | number | null;
   isRead: boolean;
   timestamp: number;
 }

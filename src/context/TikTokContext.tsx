@@ -33,7 +33,7 @@ interface TikTokContextType {
   setFeedCategory: (cat: FeedCategory) => void;
   activeVideoIndex: number;
   setActiveVideoIndex: React.Dispatch<React.SetStateAction<number>>;
-  jumpToVideo: (videoId: number) => void;
+  jumpToVideo: (videoId: number | string) => void;
 
   // Videos
   videos: VideoEntity[];
@@ -45,7 +45,7 @@ interface TikTokContextType {
   onRepostVideo: (video: VideoEntity) => void;
   onShareVideo: (video: VideoEntity) => void;
   onToggleFollow: (creatorHandle: string) => void;
-  onRecordVideoView: (videoId: number, durationMs: number) => void;
+  onRecordVideoView: (videoId: number | string, durationMs: number) => void;
 
   // Audio / Sound
   isMuted: boolean;
@@ -58,8 +58,8 @@ interface TikTokContextType {
 
   // Comments
   comments: CommentEntity[];
-  getVideoComments: (videoId: number) => CommentEntity[];
-  onAddComment: (videoId: number, content: string, parentCommentId?: number | null) => void;
+  getVideoComments: (videoId: number | string) => CommentEntity[];
+  onAddComment: (videoId: number | string, content: string, parentCommentId?: number | string | null) => void;
   onLikeComment: (comment: CommentEntity) => void;
   onDeleteComment: (comment: CommentEntity) => void;
 
@@ -82,7 +82,7 @@ interface TikTokContextType {
   onStartStitch: (video: VideoEntity) => void;
   onSaveDraft: (caption: string, soundTitle: string, soundAuthor: string, coverRes: string, videoPath: string) => void;
   onPublishDraft: (draft: DraftEntity) => void;
-  onDeleteDraft: (draftId: number) => void;
+  onDeleteDraft: (draftId: number | string) => void;
   onPublishVideo: (caption: string, soundTitle: string, soundAuthor: string, coverRes: string, videoPath: string, isPrivate: boolean, allowComments: boolean) => void;
 
   // Inbox & Chat
@@ -115,7 +115,7 @@ interface TikTokContextType {
   onRepairMediaIndex: () => void;
   blockedUsers: string[];
   mutedUsers: string[];
-  watchHistory: { videoId: number; title: string; timestamp: number }[];
+  watchHistory: { videoId: number | string; title: string; timestamp: number }[];
   onClearWatchHistory: () => void;
 
   // Diagnostics & Backend Console
@@ -204,7 +204,25 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [videos, setVideos] = useState<VideoEntity[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.VIDEOS);
-      return saved ? JSON.parse(saved) : INITIAL_VIDEOS;
+      if (saved) {
+        const parsed: VideoEntity[] = JSON.parse(saved);
+        // Normalize any legacy numeric seed IDs (1..6) to standard 'vid_001'..'vid_006'
+        const cleaned = parsed.map((v) => {
+          if (typeof v.id === 'number' && v.id >= 1 && v.id <= 6) {
+            return { ...v, id: `vid_00${v.id}` };
+          }
+          return v;
+        });
+        // Discard stale unpersisted large timestamp numeric IDs (e.g. 1789645692541) that don't exist in backend
+        const valid = cleaned.filter((v) => {
+          if (typeof v.id === 'number' && v.id > 1000000000) {
+            return false;
+          }
+          return true;
+        });
+        return valid.length > 0 ? valid : INITIAL_VIDEOS;
+      }
+      return INITIAL_VIDEOS;
     } catch {
       return INITIAL_VIDEOS;
     }
@@ -213,7 +231,16 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [comments, setComments] = useState<CommentEntity[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.COMMENTS);
-      return saved ? JSON.parse(saved) : INITIAL_COMMENTS;
+      if (saved) {
+        const parsed: CommentEntity[] = JSON.parse(saved);
+        return parsed.map((c) => {
+          if (typeof c.videoId === 'number' && c.videoId >= 1 && c.videoId <= 6) {
+            return { ...c, videoId: `vid_00${c.videoId}` };
+          }
+          return c;
+        });
+      }
+      return INITIAL_COMMENTS;
     } catch {
       return INITIAL_COMMENTS;
     }
@@ -296,7 +323,7 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
 
-  const [watchHistory, setWatchHistory] = useState<{ videoId: number; title: string; timestamp: number }[]>(() => {
+  const [watchHistory, setWatchHistory] = useState<{ videoId: number | string; title: string; timestamp: number }[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.WATCH_HISTORY);
       return saved ? JSON.parse(saved) : [];
@@ -378,15 +405,18 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const feedRes = await api.feed.getForYou().catch(() => null);
         if (isMounted && feedRes?.videos && feedRes.videos.length > 0) {
           setVideos((prev) => {
-            const remoteMap = new Map<number, VideoEntity>(feedRes.videos.map((v: VideoEntity) => [v.id, v]));
+            const remoteMap = new Map<string, VideoEntity>(feedRes.videos.map((v: VideoEntity) => [String(v.id), v]));
             const merged = feedRes.videos.map((rv: VideoEntity) => {
-              const existing = prev.find((p) => p.id === rv.id);
+              const existing = prev.find((p) => String(p.id) === String(rv.id));
               return existing ? { ...existing, ...rv } : rv;
             });
-            // Keep local-only clips if any
+            // Keep local-only clips if any (only valid user-authored or backend-synced videos, avoid stale numeric/timestamp IDs)
             for (const p of prev) {
-              if (!remoteMap.has(p.id)) {
-                merged.unshift(p);
+              const strId = String(p.id);
+              if (!remoteMap.has(strId)) {
+                if (typeof p.id === 'string' && (p.id.startsWith('vid_') || p.id.startsWith('usr_'))) {
+                  merged.unshift(p);
+                }
               }
             }
             return merged;
@@ -603,16 +633,16 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, [showToast]);
 
-  const onRecordVideoView = useCallback((videoId: number, durationMs: number) => {
+  const onRecordVideoView = useCallback((videoId: number | string, durationMs: number) => {
     setVideos((prev) => {
-      const matched = prev.find((v) => v.id === videoId);
+      const matched = prev.find((v) => String(v.id) === String(videoId));
       if (matched) {
         setWatchHistory((wPrev) => [
           { videoId, title: matched.caption.slice(0, 40), timestamp: Date.now() },
-          ...wPrev.filter((item) => item.videoId !== videoId).slice(0, 49),
+          ...wPrev.filter((item) => String(item.videoId) !== String(videoId)).slice(0, 49),
         ]);
       }
-      return prev.map((v) => (v.id === videoId ? { ...v, viewsCount: v.viewsCount + 1 } : v));
+      return prev.map((v) => (String(v.id) === String(videoId) ? { ...v, viewsCount: v.viewsCount + 1 } : v));
     });
     api.videos.recordView(videoId, durationMs, 1.0).catch(() => {});
     api.analytics.logEvent({
@@ -625,8 +655,8 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
 
-  const jumpToVideo = useCallback((videoId: number) => {
-    const idx = displayedFeedVideos.findIndex((v) => v.id === videoId);
+  const jumpToVideo = useCallback((videoId: number | string) => {
+    const idx = displayedFeedVideos.findIndex((v) => String(v.id) === String(videoId));
     if (idx !== -1) {
       setActiveVideoIndex(idx);
     }
@@ -634,11 +664,11 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [displayedFeedVideos]);
 
   // Comment Handlers with real backend calls
-  const getVideoComments = useCallback((videoId: number) => {
-    return comments.filter((c) => c.videoId === videoId);
+  const getVideoComments = useCallback((videoId: number | string) => {
+    return comments.filter((c) => String(c.videoId) === String(videoId));
   }, [comments]);
 
-  const onAddComment = useCallback((videoId: number, content: string, parentCommentId?: number | null) => {
+  const onAddComment = useCallback((videoId: number | string, content: string, parentCommentId?: number | string | null) => {
     if (!content.trim()) return;
 
     const newComment: CommentEntity = {
@@ -657,11 +687,17 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setComments((prev) => [newComment, ...prev]);
     setVideos((prev) =>
-      prev.map((v) => (v.id === videoId ? { ...v, commentsCount: v.commentsCount + 1 } : v))
+      prev.map((v) => (String(v.id) === String(videoId) ? { ...v, commentsCount: v.commentsCount + 1 } : v))
     );
     showToast('Comment posted');
 
-    api.videos.addComment(videoId, content.trim(), parentCommentId ? String(parentCommentId) : undefined).catch((err) => {
+    api.videos.addComment(videoId, content.trim(), parentCommentId ? String(parentCommentId) : undefined).then((res: any) => {
+      if (res?.comment?.id) {
+        setComments((prev) =>
+          prev.map((c) => (c.id === newComment.id ? { ...c, id: res.comment.id } : c))
+        );
+      }
+    }).catch((err) => {
       console.warn('addComment backend err:', err);
     });
   }, [currentUser, showToast]);
@@ -669,7 +705,7 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const onLikeComment = useCallback((comment: CommentEntity) => {
     setComments((prev) =>
       prev.map((c) => {
-        if (c.id === comment.id) {
+        if (String(c.id) === String(comment.id)) {
           const nextLiked = !c.isLiked;
           return {
             ...c,
@@ -684,9 +720,9 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const onDeleteComment = useCallback((comment: CommentEntity) => {
-    setComments((prev) => prev.filter((c) => c.id !== comment.id));
+    setComments((prev) => prev.filter((c) => String(c.id) !== String(comment.id)));
     setVideos((prev) =>
-      prev.map((v) => (v.id === comment.videoId ? { ...v, commentsCount: Math.max(0, v.commentsCount - 1) } : v))
+      prev.map((v) => (String(v.id) === String(comment.videoId) ? { ...v, commentsCount: Math.max(0, v.commentsCount - 1) } : v))
     );
     showToast('Comment deleted');
     api.videos.deleteComment(comment.id).catch(() => {});
@@ -847,8 +883,9 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const onPublishDraft = useCallback(
     (draft: DraftEntity) => {
+      const tempId = `vid_draft_${Date.now()}`;
       const newVideo: VideoEntity = {
-        id: Date.now(),
+        id: tempId,
         authorId: currentUser.userId,
         authorName: currentUser.displayName,
         authorHandle: currentUser.handle,
@@ -877,16 +914,37 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
 
       setVideos((prev) => [newVideo, ...prev]);
-      setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+      setDrafts((prev) => prev.filter((d) => String(d.id) !== String(draft.id)));
       showToast('Draft published to Feed! 🚀');
       setCurrentTab('HOME');
       setActiveVideoIndex(0);
+
+      // Persist to real backend
+      api.videos.publish({
+        caption: newVideo.caption,
+        soundTitle: newVideo.soundTitle,
+        soundAuthor: newVideo.soundAuthor,
+        coverResName: newVideo.coverResName,
+        videoPath: draft.localVideoPath || '',
+        category: newVideo.category,
+        hashtags: newVideo.hashtags,
+        durationSeconds: newVideo.durationSeconds,
+        isPrivate: newVideo.isPrivate,
+        allowComments: newVideo.allowComments,
+      }).then((res: any) => {
+        if (res?.video?.id) {
+          const realId = res.video.id;
+          setVideos((prev) =>
+            prev.map((v) => (String(v.id) === tempId ? { ...v, id: realId, ...res.video } : v))
+          );
+        }
+      }).catch((err) => console.warn('Publish draft backend err:', err));
     },
     [currentUser, showToast]
   );
 
-  const onDeleteDraft = useCallback((draftId: number) => {
-    setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+  const onDeleteDraft = useCallback((draftId: number | string) => {
+    setDrafts((prev) => prev.filter((d) => String(d.id) !== String(draftId)));
     showToast('Draft deleted');
   }, [showToast]);
 
@@ -900,8 +958,9 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isPrivate: boolean,
       allowComments: boolean
     ) => {
+      const tempId = `vid_pub_${Date.now()}`;
       const newVideo: VideoEntity = {
-        id: Date.now(),
+        id: tempId,
         authorId: currentUser.userId,
         authorName: currentUser.displayName,
         authorHandle: currentUser.handle,
@@ -953,6 +1012,13 @@ export const TikTokProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         durationSeconds: newVideo.durationSeconds,
         isPrivate: newVideo.isPrivate,
         allowComments: newVideo.allowComments,
+      }).then((res: any) => {
+        if (res?.video?.id) {
+          const realId = res.video.id;
+          setVideos((prev) =>
+            prev.map((v) => (String(v.id) === tempId ? { ...v, id: realId, ...res.video } : v))
+          );
+        }
       }).catch((err) => console.warn('Publish video backend err:', err));
     },
     [currentUser, selectedSoundForCreation, duetSourceVideo, stitchSourceVideo, showToast]

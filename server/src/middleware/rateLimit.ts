@@ -1,5 +1,4 @@
 import { Context, Next } from 'hono';
-import { getClientIp } from '../utils/ip.js';
 
 interface RateLimitOptions {
   windowMs: number;
@@ -28,10 +27,9 @@ export function rateLimit(options: RateLimitOptions) {
   const { windowMs, max, message = 'Too many requests, please try again later.' } = options;
 
   return async (c: Context, next: Next) => {
-    // Determine client identifier: authenticated user ID or sanitized IP
-    const user = c.get('user');
-    const userId = user?.userId || c.get('userId');
-    const ip = getClientIp(c);
+    // Determine client identifier: authenticated user ID or IP/forwarded-for
+    const userId = c.get('userId');
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '127.0.0.1';
     const path = c.req.path;
     const key = `${userId || ip}:${path}`;
 
@@ -70,3 +68,21 @@ export function rateLimit(options: RateLimitOptions) {
     await next();
   };
 }
+
+export const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: 'Upload rate limit exceeded. Please wait a few minutes before trying again.',
+});
+
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 150,
+  message: 'Too many API requests, please slow down.',
+});
+
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many authentication attempts. Please wait 15 minutes.',
+});

@@ -35,9 +35,27 @@ export const VideoFeedItem: React.FC<VideoFeedItemProps> = ({ video, isActive })
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [progress, setProgress] = useState<number>(0);
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const lastTapRef = useRef<number>(0);
   const progressIntervalRef = useRef<number | null>(null);
-  const hasRecordedRef = useRef<number | null>(null);
+  const hasRecordedRef = useRef<string | number | null>(null);
+
+  // Sync video play/pause with active state
+  useEffect(() => {
+    if (!videoRef.current) return;
+    if (isActive && isPlaying) {
+      videoRef.current.play().catch(() => {});
+    } else {
+      videoRef.current.pause();
+    }
+  }, [isActive, isPlaying]);
+
+  // Sync mute state with video element
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
 
   // Record view on active video
   useEffect(() => {
@@ -145,15 +163,28 @@ export const VideoFeedItem: React.FC<VideoFeedItemProps> = ({ video, isActive })
       className="relative w-full h-full bg-[#0C0A14] overflow-hidden select-none flex flex-col justify-end"
       onClick={handleContainerClick}
     >
-      {/* Background Visual (Video Cover Image / Animated Canvas) */}
+      {/* Background Visual (Video Player / Cover Fallback) */}
       <div className="absolute inset-0 z-0">
-        <img
-          src={coverUrl}
-          alt={video.caption}
-          className={`w-full h-full object-cover transition-transform duration-700 ${
-            isPlaying ? 'scale-105' : 'scale-100 filter brightness-90'
-          }`}
-        />
+        {video.videoUrl ? (
+          <video
+            ref={videoRef}
+            src={video.videoUrl}
+            poster={coverUrl}
+            loop
+            playsInline
+            muted={isMuted}
+            preload="metadata"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <img
+            src={coverUrl}
+            alt={video.caption}
+            className={`w-full h-full object-cover transition-transform duration-700 ${
+              isPlaying ? 'scale-105' : 'scale-100 filter brightness-90'
+            }`}
+          />
+        )}
         {/* Subtle Dark Gradients for contrast */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/85 pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none" />

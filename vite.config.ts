@@ -4,21 +4,27 @@ import tailwindcss from "@tailwindcss/vite";
 import { getRequestListener } from "@hono/node-server";
 
 function honoBackendPlugin(): Plugin {
+  let backendInitialized = false;
   return {
     name: "tashan-hono-backend",
     async configureServer(server) {
       process.env.VITE_EMBEDDED = "true";
       const { app, initializeBackend } = await import("./server/src/server.ts");
-      await initializeBackend();
+      if (!backendInitialized) {
+        backendInitialized = true;
+        await initializeBackend();
+      }
       const listener = getRequestListener(app.fetch);
+
+      const isBackendRoute = (url: string) =>
+        url.startsWith("/api") ||
+        url.startsWith("/health") ||
+        url.startsWith("/storage") ||
+        url.startsWith("/cdn");
 
       server.middlewares.use((req, res, next) => {
         const url = req.url || "";
-        if (
-          url.startsWith("/api") ||
-          url.startsWith("/health") ||
-          url.startsWith("/storage")
-        ) {
+        if (isBackendRoute(url)) {
           return listener(req, res);
         }
         next();
@@ -27,16 +33,21 @@ function honoBackendPlugin(): Plugin {
     async configurePreviewServer(server) {
       process.env.VITE_EMBEDDED = "true";
       const { app, initializeBackend } = await import("./server/src/server.ts");
-      await initializeBackend();
+      if (!backendInitialized) {
+        backendInitialized = true;
+        await initializeBackend();
+      }
       const listener = getRequestListener(app.fetch);
+
+      const isBackendRoute = (url: string) =>
+        url.startsWith("/api") ||
+        url.startsWith("/health") ||
+        url.startsWith("/storage") ||
+        url.startsWith("/cdn");
 
       server.middlewares.use((req, res, next) => {
         const url = req.url || "";
-        if (
-          url.startsWith("/api") ||
-          url.startsWith("/health") ||
-          url.startsWith("/storage")
-        ) {
+        if (isBackendRoute(url)) {
           return listener(req, res);
         }
         next();
