@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">TikTok</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_discover">Discover</string>
+    <string name="nav_create">Create</string>
+    <string name="nav_inbox">Inbox</string>
+    <string name="nav_profile">Profile</string>
+    <string name="tab_following">Following</string>
+    <string name="tab_foryou">For You</string>
+</resources>
+
